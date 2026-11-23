@@ -42,7 +42,14 @@ object Printer {
     suspend fun send(ctx: Context, address: String, data: ByteArray) = withContext(Dispatchers.IO) {
         val ad = adapter(ctx) ?: error("Este aparelho não tem Bluetooth")
         if (!ad.isEnabled) error("Ligue o Bluetooth do celular")
-        ad.cancelDiscovery()
+        // No Android 12+ isso exige BLUETOOTH_SCAN; como o app não faz busca, é só uma otimização.
+        try {
+            if (Build.VERSION.SDK_INT < 31 || ContextCompat.checkSelfPermission(
+                    ctx, Manifest.permission.BLUETOOTH_SCAN
+                ) == PackageManager.PERMISSION_GRANTED
+            ) ad.cancelDiscovery()
+        } catch (_: SecurityException) {
+        }
         val dev = ad.getRemoteDevice(address)
 
         val socket: BluetoothSocket = try {
