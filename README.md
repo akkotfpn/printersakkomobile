@@ -6,6 +6,8 @@ Os apps oficiais dessas impressoras costumam ser lentos, cheios de propaganda e 
 
 > Um projeto **Akko's Corporation**.
 
+**[⬇️ Android (APK)](https://github.com/akkotfpn/printersakkomobile/releases/latest/download/akkos-print.apk)** · **[⬇️ PC (arquivo único, portátil)](https://github.com/akkotfpn/printersakkomobile/releases/latest/download/akkos-print-desktop.html)**
+
 ---
 
 ## ✨ Funcionalidades
@@ -47,6 +49,26 @@ Tudo é desenhado como imagem na largura exata do papel (384 pontos = 58 mm a 20
 
 ---
 
+## 💻 Versão para PC (portátil)
+
+Um único arquivo **`akkos-print-desktop.html`** — sem instalar nada, funciona **offline** e roda até de pendrive. Mesmos modelos, Pix, QR Code, logo, foto e PDF do app Android, com alguns extras:
+
+- **Arrastar e soltar** foto ou PDF direto na janela
+- **Colar com Ctrl+V** uma imagem (print de tela, por exemplo)
+- Pré-visualização ao lado do formulário
+
+**Como usar no Windows:**
+1. Pareie a impressora: *Configurações › Bluetooth e dispositivos › Adicionar dispositivo* (senha `0000` ou `1234`).
+2. Abra o arquivo no **Google Chrome** ou **Microsoft Edge** (clique com o botão direito › Abrir com).
+3. Clique em **Escolher impressora** e selecione a impressora (ex.: `MTP-II`) ou a porta *“Link serial padrão via Bluetooth (COMx)”*.
+4. **Página de teste** e pronto.
+
+A conexão usa a Web Serial API do Chrome/Edge (Bluetooth SPP ou porta COM). Firefox não suporta. Os dados da empresa ficam salvos no navegador daquele computador. A aba **Ajuda** dentro do app explica o que fazer se a impressora não aparecer.
+
+Código-fonte em `desktop/src/app.html`; o arquivo final é gerado por `python3 desktop/build.py`, que embute as bibliotecas de `desktop/vendor/` ([qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator), MIT, e [pdf.js](https://github.com/mozilla/pdf.js), Apache-2.0).
+
+---
+
 ## 📱 Como usar
 
 1. Ligue a impressora e **pareie** no Android: *Configurações › Bluetooth* (senha geralmente `0000` ou `1234`).
@@ -79,6 +101,12 @@ Os documentos impressos saem marcados como **"DOCUMENTO SEM VALOR FISCAL"**. Emi
 
 ### Estrutura
 ```
+desktop/
+├── src/app.html      # Versão PC (HTML + JS)
+├── vendor/           # Bibliotecas embutidas (QR e PDF) + licenças
+├── build.py          # Gera o arquivo único akkos-print.html
+└── akkos-print.html  # Pronto pra usar
+
 app/src/main/java/com/akkos/print/
 ├── MainActivity.kt   # Telas (início, modelos, foto/PDF, dados da empresa) e "Compartilhar"
 ├── Templates.kt      # Modelos de cupom e valor por extenso

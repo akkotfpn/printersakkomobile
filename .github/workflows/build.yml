@@ -24,15 +24,21 @@ jobs:
         run: gradle assembleDebug --no-daemon
       - name: Rename APK
         run: cp app/build/outputs/apk/debug/app-debug.apk akkos-print.apk
+      - name: Build desktop (arquivo único)
+        run: |
+          python3 desktop/build.py
+          cp desktop/akkos-print.html akkos-print-desktop.html
       - uses: actions/upload-artifact@v4
         with:
           name: akkos-print-apk
-          path: akkos-print.apk
+          path: |
+            akkos-print.apk
+            akkos-print-desktop.html
       - name: Publish release (download direto)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "build-${{ github.run_number }}" akkos-print.apk \
+          gh release create "build-${{ github.run_number }}" akkos-print.apk akkos-print-desktop.html \
             --title "Akko's Print — build ${{ github.run_number }}" \
             --notes "APK gerado automaticamente a partir do commit ${{ github.sha }}." \
             --latest

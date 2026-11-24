@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Akko's Print — Desktop</title>
+<!--VENDOR-->
+<style>
+  :root { --blue:#1565C0; --bg:#f4f5f8; --card:#fff; --muted:#667; --line:#dde; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"Segoe UI",Roboto,Arial,sans-serif; background:var(--bg); color:#1b1b1f; }
+  header { display:flex; align-items:center; gap:16px; padding:12px 20px; background:var(--blue); color:#fff; flex-wrap:wrap; }
+  header h1 { margin:0; font-size:20px; }
+  header h1 small { font-weight:400; opacity:.8; font-size:14px; }
+  .printer { margin-left:auto; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  #pstatus { font-size:13px; background:rgba(255,255,255,.15); padding:6px 10px; border-radius:8px; }
+  button { font:inherit; border:1px solid var(--blue); background:#fff; color:var(--blue); border-radius:20px; padding:7px 16px; cursor:pointer; }
+  button:hover { background:#eef3fc; }
+  button.primary { background:var(--blue); color:#fff; }
+  button.primary:hover { background:#0f5aa8; }
+  button:disabled { opacity:.5; cursor:default; }
+  header button { border-color:#fff; }
+  main { display:grid; grid-template-columns:minmax(360px,1fr) 440px; gap:20px; padding:20px; max-width:1200px; margin:0 auto; }
+  @media (max-width:860px){ main { grid-template-columns:1fr; } }
+  .left, .right { background:var(--card); border-radius:16px; padding:16px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  nav { display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap; }
+  nav button { border-color:var(--line); color:#333; }
+  nav button.active { background:var(--blue); color:#fff; border-color:var(--blue); }
+  .hidden { display:none !important; }
+  label.f { display:block; margin:10px 0 0; font-size:13px; color:var(--muted); }
+  input[type=text], input[type=number], textarea, select { width:100%; font:inherit; padding:9px 10px; border:1px solid #c8cad3; border-radius:8px; margin-top:4px; background:#fff; }
+  textarea { min-height:70px; resize:vertical; }
+  h3 { margin:18px 0 6px; font-size:15px; }
+  .item { display:grid; grid-template-columns:1fr 70px 110px auto; gap:6px; margin-top:6px; }
+  .item input { margin:0; }
+  .hint { font-size:12px; color:var(--muted); margin:6px 0; line-height:1.4; }
+  .chk { display:flex; align-items:center; gap:8px; margin-top:12px; font-size:14px; }
+  #drop { border:2px dashed #b9c2d6; border-radius:12px; padding:30px; text-align:center; color:var(--muted); }
+  #drop.over { border-color:var(--blue); background:#eef3fc; }
+  .paper-wrap { background:#ddd; border-radius:10px; padding:14px; max-height:70vh; overflow:auto; }
+  #preview canvas { display:block; width:100%; background:#fff; image-rendering:pixelated; margin:0 auto 12px; box-shadow:0 1px 3px rgba(0,0,0,.2); }
+  .printbar { display:flex; gap:10px; align-items:center; margin-top:12px; }
+  .printbar select { width:auto; margin:0; }
+  .printbar button.primary { flex:1; padding:12px; font-size:16px; }
+  #toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:#333; color:#fff; padding:10px 18px; border-radius:20px; opacity:0; transition:opacity .2s; pointer-events:none; max-width:90vw; }
+  #toast.show { opacity:.95; }
+  .logoPrev { background:#fff; border:1px solid var(--line); margin-top:6px; image-rendering:pixelated; }
+  ol { padding-left:20px; line-height:1.6; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🖨️ Akko's Print <small>Desktop</small></h1>
+  <div class="printer">
+    <span id="pstatus">Nenhuma impressora</span>
+    <button id="btnPort">Escolher impressora</button>
+    <button id="btnTest">Página de teste</button>
+  </div>
+</header>
+
+<main>
+  <section class="left">
+    <nav>
+      <button data-tab="modelos" class="active">Modelos</button>
+      <button data-tab="arquivo">Foto ou PDF</button>
+      <button data-tab="empresa">Dados da empresa</button>
+      <button data-tab="ajuda">Ajuda</button>
+    </nav>
+
+    <div id="tab-modelos" class="tab">
+      <label class="f">Modelo<select id="tplSel"></select></label>
+      <div class="hint" id="tplDesc"></div>
+      <div id="form"></div>
+      <div id="itemsBox" class="hidden">
+        <h3>Itens</h3>
+        <div class="hint">Descrição · Qtd · Valor unitário</div>
+        <div id="items"></div>
+        <button id="btnAddItem" style="margin-top:8px">+ Adicionar item</button>
+      </div>
+      <label class="chk hidden" id="pixWrap"><input type="checkbox" id="pixChk"> Incluir QR Code do Pix com o valor</label>
+      <div class="hint hidden" id="pixHint">Dica: cadastre sua chave Pix em Dados da empresa pra sair um QR Code com o valor.</div>
+    </div>
+
+    <div id="tab-arquivo" class="tab hidden">
+      <div id="drop">
+        Arraste aqui uma <b>foto</b> ou <b>PDF</b><br><br>
+        <button id="btnFile">Escolher arquivo</button><br><br>
+        <span class="hint">ou cole uma imagem com Ctrl+V (print de tela, por exemplo)</span>
+      </div>
+      <input type="file" id="file" accept="image/*,application/pdf" hidden>
+      <div id="fileOpts" class="hidden">
+        <div class="hint" id="fileName"></div>
+        <h3>Ajustes</h3>
+        <label class="chk"><input type="radio" name="mode" value="dither" id="mDither"> Foto (pontilhado)</label>
+        <label class="chk"><input type="radio" name="mode" value="bw" id="mBw"> Texto / código (preto e branco)</label>
+        <label class="chk"><input type="checkbox" id="rotate"> Girar 90° (fica maior no papel)</label>
+        <label class="f">Clarear / escurecer <input type="range" id="bright" min="-100" max="100" value="0" style="width:100%"></label>
+        <label class="f hidden" id="pagesWrap">Páginas (ex.: 1-3, 5) — vazio = todas<input type="text" id="pages"></label>
+      </div>
+    </div>
+
+    <div id="tab-empresa" class="tab hidden">
+      <div class="hint">Aparecem no topo dos cupons. Deixe em branco o que não quiser imprimir. Fica salvo neste navegador.</div>
+      <label class="f">Nome / Razão social<input type="text" id="cName"></label>
+      <label class="f">CNPJ / CPF<input type="text" id="cDoc"></label>
+      <label class="f">Endereço<input type="text" id="cAddr"></label>
+      <label class="f">Telefone<input type="text" id="cPhone"></label>
+      <label class="f">Mensagem do rodapé<input type="text" id="cFooter"></label>
+      <h3>Logo</h3>
+      <canvas id="logoPrev" class="logoPrev hidden"></canvas>
+      <div style="display:flex;gap:8px;margin-top:6px">
+        <button id="btnLogo">Escolher logo</button>
+        <button id="btnLogoDel" class="hidden">Remover</button>
+      </div>
+      <input type="file" id="logoFile" accept="image/*" hidden>
+      <h3>Pix</h3>
+      <div class="hint">Telefone vai com +55 (ex.: +5512991234567); CPF/CNPJ, e-mail ou chave aleatória vão como estão.</div>
+      <label class="f">Chave Pix<input type="text" id="cPix"></label>
+      <label class="f">Cidade do recebedor (Pix)<input type="text" id="cPixCity"></label>
+      <label class="f">Próximo número de documento<input type="number" id="cSeq" min="1"></label>
+      <button class="primary" id="btnSave" style="margin-top:14px;width:100%">Salvar</button>
+    </div>
+
+    <div id="tab-ajuda" class="tab hidden">
+      <h3>Primeira vez</h3>
+      <ol>
+        <li>Abra este arquivo no <b>Google Chrome</b> ou <b>Microsoft Edge</b>.</li>
+        <li>Ligue a impressora e pareie no Windows: <i>Configurações › Bluetooth e dispositivos › Adicionar dispositivo › Bluetooth</i> (senha 0000 ou 1234).</li>
+        <li>Clique em <b>Escolher impressora</b>. Na lista, escolha a impressora (ex.: <i>MTP-II</i>) ou a porta <i>“Link serial padrão via Bluetooth (COMx)”</i>.</li>
+        <li>Clique em <b>Página de teste</b>.</li>
+      </ol>
+      <h3>Não aparece na lista?</h3>
+      <ol>
+        <li>No Windows, abra <i>Painel de Controle › Hardware e Sons › Dispositivos e Impressoras</i> (ou procure “Mais configurações de Bluetooth”), aba <b>Portas COM</b>.</li>
+        <li>Se não houver uma porta <b>de saída</b> para a impressora, clique em <i>Adicionar › De saída</i> e escolha a impressora.</li>
+        <li>Volte aqui e clique em <b>Escolher impressora</b> de novo.</li>
+      </ol>
+      <h3>Observações</h3>
+      <ul class="hint">
+        <li>A impressora só aceita um aparelho por vez: se o celular estiver conectado, desconecte antes.</li>
+        <li>Funciona 100% offline: pode levar o arquivo num pendrive.</li>
+        <li>Os dados da empresa ficam salvos neste navegador, neste computador.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="right">
+    <h3 style="margin-top:0">Pré-visualização</h3>
+    <div class="paper-wrap"><div id="preview"></div></div>
+    <div class="printbar">
+      Vias
+      <select id="copies"><option>1</option><option>2</option><option>3</option></select>
+      <button class="primary" id="btnPrint">Imprimir</button>
+    </div>
+  </section>
+</main>
+<div id="toast"></div>
+
+<script type="module">
+// ======================================================================
+//  Akko's Print — Desktop. Mesma lógica do app Android:
+//  desenha o cupom num canvas de 384 px (58 mm) e envia em ESC/POS raster.
+// ======================================================================
+const W = 384;
+const $ = s => document.querySelector(s);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('show'), 3500); }
+
+// ---------- formatação ----------
+const money = v => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+function num(s) {
+  let t = String(s ?? '').replace('R$', '').replace(/\s/g, '');
+  if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
+  const n = parseFloat(t); return isNaN(n) ? 0 : n;
+}
+const pad6 = n => String(n).padStart(6, '0');
+const now = () => { const d = new Date(); return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); };
+const today = () => new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
+const qtyText = q => Number.isInteger(q) ? String(q) : q.toFixed(2).replace('.', ',');
+
+// ---------- elementos do cupom ----------
+const T = (text, size = 22, bold = false, align = 'left') => ({ t: 'txt', text, size, bold, align });
+const R = (left, right, size = 22, bold = false) => ({ t: 'row', left, right, size, bold });
+const LINE = { t: 'line' }, DASH = { t: 'dash' };
+const SP = (h = 10) => ({ t: 'space', h });
+const IMG = c => ({ t: 'img', c });
+
+const font = (size, bold) => `${bold ? 'bold ' : ''}${size}px Arial, Helvetica, sans-serif`;
+function wrap(ctx, text, maxW) {
+  const out = [];
+  for (const para of String(text).split('\n')) {
+    if (!para.trim()) { out.push(''); continue; }
+    let line = '';
+    for (const word of para.split(' ')) {
+      const cand = line ? line + ' ' + word : word;
+      if (ctx.measureText(cand).width <= maxW) { line = cand; continue; }
+      if (line) out.push(line);
+      let w = word;
+      while (ctx.measureText(w).width > maxW && w.length > 1) {
+        let n = w.length; while (n > 1 && ctx.measureText(w.slice(0, n)).width > maxW) n--;
+        out.push(w.slice(0, n)); w = w.slice(n);
+      }
+      line = w;
+    }
+    out.push(line);
+  }
+  return out;
+}
+function draw(els, ctx, real) {
+  const M = 4, right = W - M, maxW = W - 2 * M;
+  let y = 0; ctx.textBaseline = 'top'; ctx.fillStyle = '#000';
+  for (const e of els) {
+    if (e.t === 'txt') {
+      ctx.font = font(e.size, e.bold); ctx.textAlign = e.align;
+      const x = e.align === 'center' ? W / 2 : e.align === 'right' ? right : M;
+      for (const l of wrap(ctx, e.text, maxW)) { if (real) ctx.fillText(l, x, y); y += Math.round(e.size * 1.2); }
+    } else if (e.t === 'row') {
+      ctx.font = font(e.size, e.bold);
+      const rw = ctx.measureText(e.right).width;
+      const ls = wrap(ctx, e.left, Math.max(60, maxW - rw - 12));
+      ls.forEach((l, i) => {
+        if (real) {
+          ctx.textAlign = 'left'; ctx.fillText(l, M, y);
+          if (i === ls.length - 1) { ctx.textAlign = 'right'; ctx.fillText(e.right, right, y); }
+        }
+        y += Math.round(e.size * 1.2);
+      });
+    } else if (e.t === 'line') { y += 6; if (real) ctx.fillRect(M, y, right - M, 2); y += 10; }
+    else if (e.t === 'dash') { y += 6; if (real) for (let x = M; x < right; x += 14) ctx.fillRect(x, y, Math.min(8, right - x), 2); y += 10; }
+    else if (e.t === 'space') y += e.h;
+    else if (e.t === 'img') {
+      const w = Math.min(e.c.width, W), h = Math.round(e.c.height * w / e.c.width);
+      if (real) { ctx.imageSmoothingEnabled = false; ctx.drawImage(e.c, (W - w) / 2, y, w, h); }
+      y += h + 6;
+    }
+  }
+  return y + 4;
+}
+function newCanvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+/** Desenha e já converte em preto e branco puro: a tela mostra exatamente o que sai no papel. */
+function render(els) {
+  const h = Math.max(1, draw(els, newCanvas(1, 1).getContext('2d'), false));
+  const c = newCanvas(W, h), ctx = c.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, h);
+  draw(els, ctx, true);
+  return threshold(c);
+}
+function threshold(c) {
+  const ctx = c.getContext('2d'), im = ctx.getImageData(0, 0, c.width, c.height), d = im.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const v = (d[i] * 299 + d[i + 1] * 587 + d[i + 2] * 114) / 1000 < 128 ? 0 : 255;
+    d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255;
+  }
+  ctx.putImageData(im, 0, 0); return c;
+}
+
+// ---------- foto: girar, reduzir, pontilhar ----------
+function prepare(src, { rotate = false, dither = true, bright = 0, width = W } = {}) {
+  let sw = src.width, sh = src.height;
+  let base = src;
+  if (rotate) {
+    const r = newCanvas(sh, sw), rc = r.getContext('2d');
+    rc.translate(sh, 0); rc.rotate(Math.PI / 2); rc.drawImage(src, 0, 0);
+    base = r; [sw, sh] = [sh, sw];
+  }
+  const w = width, h = Math.max(1, Math.round(sh * w / sw));
+  const c = newCanvas(w, h), ctx = c.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+  ctx.imageSmoothingQuality = 'high'; ctx.drawImage(base, 0, 0, w, h);
+  const im = ctx.getImageData(0, 0, w, h), d = im.data;
+  const g = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) g[i] = Math.min(255, Math.max(0, 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2] + bright * 1.28));
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x, old = g[i], nw = old < 128 ? 0 : 255;
+    d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = nw; d[i * 4 + 3] = 255;
+    if (dither) {
+      const err = old - nw;
+      if (x + 1 < w) g[i + 1] += err * 7 / 16;
+      if (y + 1 < h) {
+        if (x > 0) g[i + w - 1] += err * 3 / 16;
+        g[i + w] += err * 5 / 16;
+        if (x + 1 < w) g[i + w + 1] += err / 16;
+      }
+    }
+  }
+  ctx.putImageData(im, 0, 0); return c;
+}
+
+// ---------- ESC/POS ----------
+function escpos(c, feed = 4) {
+  const w = c.width, h = c.height, wb = (w + 7) >> 3;
+  const d = c.getContext('2d').getImageData(0, 0, w, h).data;
+  const out = [0x1B, 0x40];
+  for (let y0 = 0; y0 < h; y0 += 64) {
+    const bh = Math.min(64, h - y0);
+    out.push(0x1D, 0x76, 0x30, 0x00, wb & 255, wb >> 8, bh & 255, bh >> 8);
+    for (let y = y0; y < y0 + bh; y++) for (let xb = 0; xb < wb; xb++) {
+      let b = 0;
+      for (let bit = 0; bit < 8; bit++) {
+        const x = xb * 8 + bit;
+        if (x < w) { const i = (y * w + x) * 4; if ((d[i] * 299 + d[i + 1] * 587 + d[i + 2] * 114) / 1000 < 128) b |= 0x80 >> bit; }
+      }
+      out.push(b);
+    }
+  }
+  out.push(0x1B, 0x64, feed);
+  return Uint8Array.from(out);
+}
+
+// ---------- QR e Pix ----------
+function qrCanvas(text, target = 300) {
+  const q = qrcode(0, 'M');
+  q.addData(unescape(encodeURIComponent(text))); // bytes UTF-8
+  q.make();
+  const n = q.getModuleCount() + 2, mod = Math.max(1, Math.floor(target / n));
+  const c = newCanvas(n * mod, n * mod), ctx = c.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height); ctx.fillStyle = '#000';
+  for (let r = 0; r < n - 2; r++) for (let col = 0; col < n - 2; col++)
+    if (q.isDark(r, col)) ctx.fillRect((col + 1) * mod, (r + 1) * mod, mod, mod);
+  return c;
+}
+const asciiOnly = s => s.normalize('NFD').replace(/\p{Mn}+/gu, '').replace(/[^A-Za-z0-9 .,\-]/g, '').trim();
+const tlv = (id, v) => id + String(v.length).padStart(2, '0') + v;
+function normalizeKey(raw) {
+  const k = raw.trim();
+  if (k.includes('@')) return k.toLowerCase();
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(k)) return k.toLowerCase();
+  if (k.startsWith('+')) return '+' + k.replace(/\D/g, '');
+  const d = k.replace(/\D/g, '');
+  return (d.length === 11 || d.length === 14) ? d : k;
+}
+function crc16(s) {
+  let crc = 0xFFFF;
+  for (const b of new TextEncoder().encode(s)) {
+    crc ^= b << 8;
+    for (let i = 0; i < 8; i++) crc = ((crc & 0x8000) ? (crc << 1) ^ 0x1021 : crc << 1) & 0xFFFF;
+  }
+  return crc.toString(16).toUpperCase().padStart(4, '0');
+}
+function pixCode(key, name, city, amount, txid) {
+  let p = tlv('00', '01') + tlv('26', tlv('00', 'br.gov.bcb.pix') + tlv('01', normalizeKey(key)))
+    + tlv('52', '0000') + tlv('53', '986');
+  if (amount > 0) p += tlv('54', amount.toFixed(2));
+  p += tlv('58', 'BR') + tlv('59', (asciiOnly(name) || 'RECEBEDOR').slice(0, 25))
+    + tlv('60', (asciiOnly(city) || 'BRASIL').slice(0, 15))
+    + tlv('62', tlv('05', (txid.replace(/[^A-Za-z0-9]/g, '').slice(0, 25) || '***'))) + '6304';
+  return p + crc16(p);
+}
+
+// ---------- valor por extenso ----------
+const UN = ['zero','um','dois','três','quatro','cinco','seis','sete','oito','nove','dez','onze','doze','treze','quatorze','quinze','dezesseis','dezessete','dezoito','dezenove'];
+const DZ = ['','','vinte','trinta','quarenta','cinquenta','sessenta','setenta','oitenta','noventa'];
+const CT = ['','cento','duzentos','trezentos','quatrocentos','quinhentos','seiscentos','setecentos','oitocentos','novecentos'];
+function ate999(n) {
+  if (n === 100) return 'cem';
+  const p = [], c = Math.floor(n / 100), r = n % 100;
+  if (c) p.push(CT[c]);
+  if (r) p.push(r < 20 ? UN[r] : DZ[Math.floor(r / 10)] + (r % 10 ? ' e ' + UN[r % 10] : ''));
+  return p.join(' e ');
+}
+function inteiro(n) {
+  if (!n) return 'zero';
+  const mi = Math.floor(n / 1e6), mil = Math.floor(n / 1000) % 1000, resto = n % 1000, p = [];
+  if (mi) p.push(ate999(mi) + (mi === 1 ? ' milhão' : ' milhões'));
+  if (mil) p.push(mil === 1 ? 'mil' : ate999(mil) + ' mil');
+  if (resto) p.push(ate999(resto));
+  if (p.length === 1) return p[0];
+  const last = p.pop();
+  return p.join(', ') + ((resto && (resto < 100 || resto % 100 === 0)) ? ' e ' : ' ') + last;
+}
+function extenso(v) {
+  const cents = Math.round(v * 100), reais = Math.floor(cents / 100), c = cents % 100, p = [];
+  if (reais) p.push(inteiro(reais) + (reais === 1 ? ' real' : reais % 1e6 === 0 ? ' de reais' : ' reais'));
+  if (c) p.push(ate999(c) + (c === 1 ? ' centavo' : ' centavos'));
+  return p.length ? p.join(' e ') : 'zero reais';
+}
+
+// ---------- dados salvos ----------
+const store = {
+  get company() { try { return JSON.parse(localStorage.getItem('ap_company')) || {}; } catch { return {}; } },
+  set company(c) { localStorage.setItem('ap_company', JSON.stringify(c)); },
+  get seq() { return parseInt(localStorage.getItem('ap_seq') || '1', 10) || 1; },
+  set seq(n) { localStorage.setItem('ap_seq', String(n)); },
+};
+let company = Object.assign({ footer: 'Obrigado pela preferência!' }, store.company);
+let logoCanvas = null;
+function loadLogo(dataUrl) {
+  return new Promise(res => {
+    if (!dataUrl) { logoCanvas = null; return res(); }
+    const img = new Image();
+    img.onload = () => { const c = newCanvas(img.width, img.height); c.getContext('2d').drawImage(img, 0, 0); logoCanvas = c; res(); };
+    img.onerror = () => { logoCanvas = null; res(); };
+    img.src = dataUrl;
+  });
+}
+
+// ---------- blocos dos modelos ----------
+function header(d, title) {
+  const c = d.company, out = [];
+  if (d.logo) out.push(IMG(d.logo));
+  if (c.name) out.push(T(c.name, 28, true, 'center'));
+  if (c.doc) out.push(T(c.doc, 18, false, 'center'));
+  if (c.address) out.push(T(c.address, 18, false, 'center'));
+  if (c.phone) out.push(T('Tel: ' + c.phone, 18, false, 'center'));
+  if (c.name || d.logo) out.push(LINE);
+  out.push(T(title, 26, true, 'center'));
+  out.push(T(d.number > 0 ? `Nº ${pad6(d.number)}   ${now()}` : now(), 18, false, 'center'));
+  out.push(LINE);
+  return out;
+}
+const info = (out, label, v) => { if (v) out.push(T(`${label}: ${v}`, 20)); };
+function block(out, label, v) { if (!v) return; out.push(T(label, 18, true), T(v, 22), SP(4)); }
+function items(d, out, title = 'ITEM') {
+  const valid = d.items.filter(i => i.desc.trim());
+  if (!valid.length) return 0;
+  let total = 0;
+  out.push(R(title, 'VALOR', 18, true));
+  for (const it of valid) {
+    let q = num(it.qty); if (q <= 0) q = 1;
+    const p = num(it.price), t = q * p; total += t;
+    out.push(T(it.desc.trim(), 22), R(`   ${qtyText(q)} x ${money(p)}`, money(t), 20));
+  }
+  out.push(DASH);
+  return total;
+}
+function pixBlock(d, out, amount) {
+  if (!d.wantsPix || amount <= 0) return;
+  const code = pixCode(d.company.pixKey, d.company.name || '', d.company.pixCity || '', amount, 'AKKO' + pad6(d.number));
+  out.push(SP(10), T('Pague com Pix', 22, true, 'center'), IMG(qrCanvas(code, 260)));
+}
+function signature(out, name) { out.push(SP(50), T('______________________________', 20, false, 'center'), T(name || 'Assinatura', 18, false, 'center')); }
+function footer(d, out) {
+  out.push(SP(12));
+  if (d.company.footer) out.push(T(d.company.footer, 20, false, 'center'));
+  out.push(T('DOCUMENTO SEM VALOR FISCAL', 16, true, 'center'));
+}
+
+// ---------- modelos (iguais ao Android) ----------
+const F = (key, label, o = {}) => ({ key, label, multiline: !!o.multiline, numeric: !!o.numeric, def: o.def || '' });
+const TEMPLATES = [
+  { name: 'Nota de venda', desc: 'Itens, desconto, total e forma de pagamento', items: true, numbered: true, pix: true,
+    fields: [F('cliente', 'Cliente'), F('doc', 'CPF/CNPJ do cliente'), F('desconto', 'Desconto (R$)', { numeric: true }), F('pagamento', 'Forma de pagamento', { def: 'Pix' }), F('obs', 'Observações', { multiline: true })],
+    build(d) {
+      const out = header(d, 'NOTA DE VENDA');
+      info(out, 'Cliente', d.s('cliente')); info(out, 'CPF/CNPJ', d.s('doc'));
+      if (d.s('cliente') || d.s('doc')) out.push(DASH);
+      const sub = items(d, out), desc = num(d.s('desconto'));
+      if (desc > 0) out.push(R('Subtotal', money(sub), 20), R('Desconto', '- ' + money(desc), 20));
+      const total = Math.max(0, sub - desc);
+      out.push(R('TOTAL', money(total), 30, true));
+      if (d.s('pagamento')) out.push(R('Pagamento', d.s('pagamento'), 20));
+      if (d.s('obs')) out.push(SP(8), T('Obs: ' + d.s('obs'), 18));
+      pixBlock(d, out, total); footer(d, out); return out;
+    } },
+  { name: 'Recibo', desc: 'Recibo de pagamento com valor por extenso e assinatura', items: false, numbered: true, pix: true,
+    fields: [F('de', 'Recebi de'), F('doc', 'CPF/CNPJ de quem pagou'), F('valor', 'Valor (R$)', { numeric: true }), F('ref', 'Referente a', { multiline: true }), F('pagamento', 'Forma de pagamento', { def: 'Pix' }), F('cidade', 'Cidade', { def: 'Caçapava' })],
+    build(d) {
+      const out = header(d, 'RECIBO'), v = num(d.s('valor'));
+      out.push(R('VALOR', money(v), 30, true), DASH);
+      const doc = d.s('doc') ? `, CPF/CNPJ ${d.s('doc')},` : '', ref = d.s('ref') ? `, referente a ${d.s('ref')}` : '';
+      out.push(T(`Recebi de ${d.s('de') || '________________'}${doc} a importância de ${money(v)} (${extenso(v)})${ref}.`, 22));
+      if (d.s('pagamento')) { out.push(SP(8)); info(out, 'Forma de pagamento', d.s('pagamento')); }
+      out.push(SP(10), T(d.s('cidade') ? `${d.s('cidade')}, ${today()}` : today(), 20));
+      signature(out, d.company.name); pixBlock(d, out, v); return out;
+    } },
+  { name: 'Orçamento', desc: 'Itens, total, validade e prazo', items: true, numbered: true, pix: true,
+    fields: [F('cliente', 'Cliente'), F('tel', 'Telefone do cliente'), F('validade', 'Validade (dias)', { numeric: true, def: '7' }), F('prazo', 'Prazo de entrega'), F('obs', 'Observações', { multiline: true })],
+    build(d) {
+      const out = header(d, 'ORÇAMENTO');
+      info(out, 'Cliente', d.s('cliente')); info(out, 'Telefone', d.s('tel'));
+      if (d.s('cliente') || d.s('tel')) out.push(DASH);
+      const total = items(d, out);
+      out.push(R('TOTAL', money(total), 30, true), SP(6));
+      if (d.s('validade')) info(out, 'Válido por', d.s('validade') + ' dias');
+      info(out, 'Prazo de entrega', d.s('prazo'));
+      if (d.s('obs')) out.push(T('Obs: ' + d.s('obs'), 18));
+      pixBlock(d, out, total); footer(d, out); return out;
+    } },
+  { name: 'Ordem de serviço', desc: 'Equipamento, defeito, serviço, peças e garantia', items: true, numbered: true, pix: false,
+    fields: [F('cliente', 'Cliente'), F('tel', 'Telefone do cliente'), F('equip', 'Equipamento'), F('defeito', 'Defeito relatado', { multiline: true }), F('servico', 'Serviço realizado', { multiline: true }), F('garantia', 'Garantia', { def: '90 dias' })],
+    build(d) {
+      const out = header(d, 'ORDEM DE SERVIÇO');
+      info(out, 'Cliente', d.s('cliente')); info(out, 'Telefone', d.s('tel')); out.push(DASH);
+      block(out, 'EQUIPAMENTO', d.s('equip')); block(out, 'DEFEITO RELATADO', d.s('defeito')); block(out, 'SERVIÇO REALIZADO', d.s('servico'));
+      out.push(DASH);
+      const total = items(d, out, 'PEÇAS / SERVIÇOS');
+      if (total > 0) out.push(R('TOTAL', money(total), 30, true));
+      info(out, 'Garantia', d.s('garantia'));
+      signature(out, 'Cliente'); footer(d, out); return out;
+    } },
+  { name: 'Cobrança Pix', desc: 'QR Code do Pix com valor, pra cliente pagar na hora', items: false, numbered: true, pix: false,
+    fields: [F('valor', 'Valor (R$)', { numeric: true }), F('desc', 'Descrição (opcional)')],
+    build(d) {
+      const out = [], c = d.company, v = num(d.s('valor'));
+      out.push(T('PIX', 40, true, 'center'));
+      if (c.name) out.push(T(c.name, 22, false, 'center'));
+      out.push(LINE);
+      if (!c.pixKey) { out.push(T('Cadastre a chave Pix em Dados da empresa.', 22, true, 'center')); return out; }
+      out.push(IMG(qrCanvas(pixCode(c.pixKey, c.name || '', c.pixCity || '', v, 'AKKO' + pad6(d.number)), 340)));
+      if (v > 0) out.push(T(money(v), 36, true, 'center'));
+      if (d.s('desc')) out.push(T(d.s('desc'), 22, false, 'center'));
+      out.push(SP(6), T('Chave: ' + c.pixKey, 18, false, 'center'), T(now(), 16, false, 'center'));
+      return out;
+    } },
+  { name: 'QR Code', desc: 'Link, Wi-Fi, contato ou qualquer texto em QR', items: false, numbered: false, pix: false,
+    fields: [F('texto', 'Link ou texto', { multiline: true }), F('legenda', 'Legenda embaixo (opcional)'), F('wifi_senha', 'Senha do Wi-Fi (só se o texto for o nome da rede)')],
+    build(d) {
+      const out = [], raw = d.s('texto');
+      if (!raw) return [T('Digite um link ou texto', 22, false, 'center')];
+      const esc = s => s.replace(/([\\;,:])/g, '\\$1');
+      const content = d.s('wifi_senha') ? `WIFI:T:WPA;S:${esc(raw)};P:${esc(d.s('wifi_senha'))};;` : raw;
+      out.push(IMG(qrCanvas(content, 340)));
+      if (d.s('legenda')) out.push(T(d.s('legenda'), 24, true, 'center'));
+      if (d.s('wifi_senha')) out.push(T('Wi-Fi: ' + raw, 20, false, 'center'));
+      return out;
+    } },
+  { name: 'Texto livre', desc: 'Qualquer texto, do tamanho que quiser', items: false, numbered: false, pix: false,
+    fields: [F('titulo', 'Título (opcional)'), F('texto', 'Texto', { multiline: true }), F('tamanho', 'Tamanho da letra (14 a 60)', { numeric: true, def: '24' })],
+    build(d) {
+      const out = [];
+      if (d.s('titulo')) out.push(T(d.s('titulo'), 32, true, 'center'), LINE);
+      out.push(T(d.s('texto'), Math.min(60, Math.max(14, num(d.s('tamanho')) || 24))));
+      return out;
+    } },
+];
+const testPage = () => [
+  T("Akko's Print", 32, true, 'center'), T('Impressora conectada pelo PC!', 22, false, 'center'), LINE,
+  T('Acentos: ação, coração, pão, é, ü, ç', 20), R('Esquerda', 'Direita', 22), R('TOTAL', money(1234.56), 30, true), DASH,
+  T(now(), 18, false, 'center'),
+];
+
+// ---------- estado da tela ----------
+let tpl = TEMPLATES[0], values = {}, itemList = [], pixOn = true;
+let mode = 'modelos';              // o que o botão Imprimir imprime: 'modelos' ou 'arquivo'
+let source = null;                 // { name, pages:[canvas], isPdf, total }
+let current = [];                  // canvases prontos para imprimir
+
+function buildForm() {
+  values = {}; itemList = [{ desc: '', qty: '1', price: '' }];
+  $('#tplDesc').textContent = tpl.desc;
+  const form = $('#form'); form.innerHTML = '';
+  for (const f of tpl.fields) {
+    values[f.key] = f.def;
+    const lab = document.createElement('label'); lab.className = 'f'; lab.textContent = f.label;
+    const inp = document.createElement(f.multiline ? 'textarea' : 'input');
+    if (!f.multiline) { inp.type = 'text'; if (f.numeric) inp.inputMode = 'decimal'; }
+    inp.value = f.def;
+    inp.addEventListener('input', () => { values[f.key] = inp.value; refresh(); });
+    lab.appendChild(inp); form.appendChild(lab);
+  }
+  $('#itemsBox').classList.toggle('hidden', !tpl.items);
+  const hasKey = !!(company.pixKey || '').trim();
+  $('#pixWrap').classList.toggle('hidden', !(tpl.pix && hasKey));
+  $('#pixHint').classList.toggle('hidden', !(tpl.pix && !hasKey));
+  pixOn = true; $('#pixChk').checked = true;
+  buildItems(); refresh();
+}
+function buildItems() {
+  const box = $('#items'); box.innerHTML = '';
+  itemList.forEach((it, i) => {
+    const row = document.createElement('div'); row.className = 'item';
+    const mk = (k, ph) => { const e = document.createElement('input'); e.type = 'text'; e.placeholder = ph; e.value = it[k]; e.addEventListener('input', () => { it[k] = e.value; refresh(); }); return e; };
+    const del = document.createElement('button'); del.textContent = '✕'; del.title = 'Remover item'; del.disabled = itemList.length < 2;
+    del.onclick = () => { itemList.splice(i, 1); buildItems(); refresh(); };
+    row.append(mk('desc', 'Descrição'), mk('qty', 'Qtd'), mk('price', 'Valor'), del);
+    box.appendChild(row);
+  });
+}
+function templateData() {
+  return {
+    s: k => String(values[k] ?? '').trim(), items: itemList, company, logo: logoCanvas,
+    number: tpl.numbered ? store.seq : 0,
+    get wantsPix() { return tpl.pix && pixOn && !!(company.pixKey || '').trim(); },
+  };
+}
+let refreshTimer = null;
+function refresh() { clearTimeout(refreshTimer); refreshTimer = setTimeout(doRefresh, 60); }
+function doRefresh() {
+  const prev = $('#preview'); prev.innerHTML = '';
+  try {
+    if (mode === 'modelos') current = [render(tpl.build(templateData()))];
+    else if (source) {
+      const rot = $('#rotate').checked, dith = $('#mDither').checked, bright = +$('#bright').value;
+      current = parsePages($('#pages').value, source.pages.length).map(i => prepare(source.pages[i], { rotate: rot, dither: dith, bright }));
+    } else current = [];
+  } catch (e) { current = []; prev.textContent = e.message; return; }
+  if (!current.length) prev.textContent = mode === 'arquivo' ? 'Escolha uma foto ou PDF' : 'Nada para mostrar';
+  current.forEach(c => prev.appendChild(c));
+}
+function parsePages(text, count) {
+  if (!text.trim()) return [...Array(count).keys()];
+  const set = new Set();
+  for (const part of text.split(/[,; ]+/).filter(Boolean)) {
+    const [a, b] = part.split('-').map(x => parseInt(x, 10));
+    if (isNaN(a)) continue;
+    const e = isNaN(b) ? a : b;
+    for (let p = Math.min(a, e); p <= Math.max(a, e); p++) if (p >= 1 && p <= count) set.add(p - 1);
+  }
+  return [...set].sort((x, y) => x - y);
+}
+
+// ---------- arquivos (foto/PDF) ----------
+// pdf.js vem embutido no arquivo (funciona offline); o "worker" roda na própria página.
+async function getPdfjs() {
+  if (!window.pdfjsLib) throw new Error('Leitor de PDF indisponível');
+  return window.pdfjsLib;
+}
+async function openFile(file) {
+  if (!file) return;
+  const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+  toast('Carregando…');
+  try {
+    let pages = [], total = 1;
+    if (isPdf) {
+      const lib = await getPdfjs();
+      const doc = await lib.getDocument({ data: await file.arrayBuffer() }).promise;
+      total = doc.numPages;
+      for (let i = 1; i <= Math.min(total, 30); i++) {
+        const page = await doc.getPage(i), vp1 = page.getViewport({ scale: 1 });
+        const vp = page.getViewport({ scale: 1000 / vp1.width });
+        const c = newCanvas(Math.round(vp.width), Math.round(vp.height)), ctx = c.getContext('2d');
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+        await page.render({ canvasContext: ctx, viewport: vp }).promise;
+        pages.push(c);
+      }
+      if (total > 30) toast(`PDF com ${total} páginas: só as 30 primeiras foram carregadas`);
+    } else {
+      const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+      const c = newCanvas(bmp.width, bmp.height); c.getContext('2d').drawImage(bmp, 0, 0); pages = [c];
+    }
+    source = { name: file.name || 'imagem colada', pages, isPdf, total };
+    $('#fileOpts').classList.remove('hidden');
+    $('#fileName').textContent = isPdf ? `${source.name} — ${total} página(s)` : source.name;
+    $(isPdf ? '#mBw' : '#mDither').checked = true;
+    $('#rotate').checked = false; $('#bright').value = 0; $('#pages').value = '';
+    $('#pagesWrap').classList.toggle('hidden', !(isPdf && pages.length > 1));
+    showTab('arquivo'); refresh();
+  } catch (e) {
+    toast('Não consegui abrir: ' + (e.message || e));
+  }
+}
+
+// ---------- impressora (Web Serial: Bluetooth direto ou porta COM) ----------
+const SPP = '00001101-0000-1000-8000-00805f9b34fb';
+let port = null;
+function portLabel(p) {
+  const i = p.getInfo();
+  if (i.bluetoothServiceClassId) return 'Bluetooth conectado';
+  if (i.usbVendorId) return 'USB ' + i.usbVendorId.toString(16).toUpperCase();
+  return 'Porta serial (COM)';
+}
+function updateStatus() { $('#pstatus').textContent = port ? '✅ ' + portLabel(port) : 'Nenhuma impressora'; }
+async function choosePort() {
+  if (!('serial' in navigator)) return toast('Abra este arquivo no Google Chrome ou Microsoft Edge');
+  try {
+    port = await navigator.serial.requestPort({ allowedBluetoothServiceClassIds: [SPP] });
+    updateStatus(); toast('Impressora escolhida. Faça a página de teste!');
+  } catch (e) { if (e.name !== 'NotFoundError') toast('Não deu pra escolher: ' + e.message); }
+}
+async function send(data) {
+  if (!port) { await choosePort(); if (!port) throw new Error('Escolha a impressora primeiro'); }
+  try { await port.open({ baudRate: 9600 }); }
+  catch (e) { if (!/already open/i.test(e.message)) throw new Error('Não conectou. A impressora está ligada e livre (celular desconectado)?'); }
+  const w = port.writable.getWriter();
+  try {
+    for (let i = 0; i < data.length; i += 256) { await w.write(data.subarray(i, i + 256)); await sleep(12); }
+    await sleep(800);
+  } finally {
+    w.releaseLock();
+    await port.close().catch(() => {});
+  }
+}
+async function printCanvases(list, copies = 1) {
+  if (!list.length) return toast('Nada para imprimir'), false;
+  const parts = list.map(c => escpos(c));
+  const one = new Uint8Array(parts.reduce((s, p) => s + p.length, 0));
+  let o = 0; for (const p of parts) { one.set(p, o); o += p.length; }
+  const all = new Uint8Array(one.length * copies);
+  for (let i = 0; i < copies; i++) all.set(one, i * one.length);
+  const btns = [$('#btnPrint'), $('#btnTest')]; btns.forEach(b => b.disabled = true);
+  $('#btnPrint').textContent = 'Imprimindo…';
+  try { await send(all); toast('Impresso!'); return true; }
+  catch (e) { toast('Falha ao imprimir: ' + e.message); return false; }
+  finally { btns.forEach(b => b.disabled = false); $('#btnPrint').textContent = 'Imprimir'; }
+}
+
+// ---------- abas e eventos ----------
+function showTab(name) {
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('hidden', t.id !== 'tab-' + name));
+  if (name === 'modelos' || name === 'arquivo') { mode = name; refresh(); }
+}
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+
+TEMPLATES.forEach((t, i) => { const o = document.createElement('option'); o.value = i; o.textContent = t.name; $('#tplSel').appendChild(o); });
+$('#tplSel').onchange = e => { tpl = TEMPLATES[+e.target.value]; buildForm(); };
+$('#btnAddItem').onclick = () => { itemList.push({ desc: '', qty: '1', price: '' }); buildItems(); refresh(); };
+$('#pixChk').onchange = e => { pixOn = e.target.checked; refresh(); };
+
+$('#btnFile').onclick = () => $('#file').click();
+$('#file').onchange = e => { openFile(e.target.files[0]); e.target.value = ''; };
+const drop = $('#drop');
+['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => openFile(e.dataTransfer.files[0]));
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', e => { e.preventDefault(); if (e.dataTransfer.files[0]) openFile(e.dataTransfer.files[0]); });
+document.addEventListener('paste', e => {
+  const f = [...(e.clipboardData?.files || [])].find(x => x.type.startsWith('image/'));
+  if (f) openFile(f);
+});
+['#rotate', '#mDither', '#mBw', '#bright', '#pages'].forEach(s => $(s).addEventListener(s === '#pages' ? 'input' : 'change', refresh));
+
+$('#btnPort').onclick = choosePort;
+$('#btnTest').onclick = () => printCanvases([render(testPage())]);
+$('#btnPrint').onclick = async () => {
+  const ok = await printCanvases(current, +$('#copies').value);
+  if (ok && mode === 'modelos' && tpl.numbered) { store.seq = store.seq + 1; refresh(); }
+};
+
+// empresa
+function fillCompany() {
+  $('#cName').value = company.name || ''; $('#cDoc').value = company.doc || ''; $('#cAddr').value = company.address || '';
+  $('#cPhone').value = company.phone || ''; $('#cFooter').value = company.footer ?? '';
+  $('#cPix').value = company.pixKey || ''; $('#cPixCity').value = company.pixCity || ''; $('#cSeq').value = store.seq;
+  showLogo();
+}
+let pendingLogo; // undefined = sem mudança, null = remover, string = novo
+function showLogo() {
+  const c = $('#logoPrev'), src = pendingLogo !== undefined ? pendingLogoCanvas : logoCanvas;
+  $('#btnLogoDel').classList.toggle('hidden', !src);
+  $('#btnLogo').textContent = src ? 'Trocar logo' : 'Escolher logo';
+  if (!src) { c.classList.add('hidden'); return; }
+  c.width = src.width; c.height = src.height; c.getContext('2d').drawImage(src, 0, 0); c.classList.remove('hidden');
+}
+let pendingLogoCanvas = null;
+$('#btnLogo').onclick = () => $('#logoFile').click();
+$('#logoFile').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    const bmp = await createImageBitmap(f, { imageOrientation: 'from-image' });
+    const c = newCanvas(bmp.width, bmp.height); c.getContext('2d').drawImage(bmp, 0, 0);
+    pendingLogoCanvas = prepare(c, { dither: true, width: 240 });
+    pendingLogo = pendingLogoCanvas.toDataURL('image/png'); showLogo();
+  } catch { toast('Não consegui abrir a imagem'); }
+};
+$('#btnLogoDel').onclick = () => { pendingLogo = null; pendingLogoCanvas = null; showLogo(); };
+$('#btnSave').onclick = async () => {
+  company = {
+    name: $('#cName').value.trim(), doc: $('#cDoc').value.trim(), address: $('#cAddr').value.trim(),
+    phone: $('#cPhone').value.trim(), footer: $('#cFooter').value.trim(),
+    pixKey: $('#cPix').value.trim(), pixCity: $('#cPixCity').value.trim(),
+    logo: pendingLogo !== undefined ? pendingLogo : (store.company.logo || null),
+  };
+  store.company = company;
+  const n = parseInt($('#cSeq').value, 10); if (n >= 1) store.seq = n;
+  await loadLogo(company.logo); pendingLogo = undefined;
+  toast('Salvo'); buildForm(); showTab('modelos');
+};
+
+// ---------- início ----------
+(async () => {
+  await loadLogo(company.logo);
+  fillCompany();
+  buildForm();
+  if ('serial' in navigator) {
+    const ports = await navigator.serial.getPorts();
+    if (ports.length) port = ports[0];
+  } else {
+    toast('Use o Google Chrome ou o Microsoft Edge para imprimir');
+  }
+  updateStatus();
+})();
+
+// exposto para testes
+window.AP = { TEMPLATES, render, escpos, pixCode, extenso, prepare, parsePages };
+</script>
+</body>
+</html>
