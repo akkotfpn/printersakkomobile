@@ -274,7 +274,12 @@ private fun HomeScreen(prefs: Prefs, onOpen: (Template) -> Unit, onSettings: () 
 private fun EditorScreen(t: Template, prefs: Prefs, onBack: () -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
-    val values = remember { mutableStateMapOf<String, String>().apply { t.fields.forEach { put(it.key, it.default) } } }
+    val values = remember {
+        mutableStateMapOf<String, String>().apply {
+            t.fields.forEach { put(it.key, it.default) }
+            if (t.pix && prefs.company.pixKey.isNotBlank()) put(PIX_FLAG, "1")
+        }
+    }
     val items = remember { mutableStateListOf(Item()) }
     var number by remember { mutableIntStateOf(prefs.nextNumber) }
     var copies by remember { mutableIntStateOf(1) }
@@ -343,6 +348,21 @@ private fun EditorScreen(t: Template, prefs: Prefs, onBack: () -> Unit) {
             OutlinedButton(onClick = { items.add(Item()) }) { Text("+ Adicionar item") }
         }
 
+        if (t.pix) {
+            if (company.pixKey.isNotBlank()) {
+                FilterChip(
+                    selected = values[PIX_FLAG] == "1",
+                    onClick = { values[PIX_FLAG] = if (values[PIX_FLAG] == "1") "0" else "1" },
+                    label = { Text("Incluir QR Code do Pix com o valor") },
+                )
+            } else {
+                Text(
+                    "Dica: cadastre sua chave Pix em Dados da empresa pra sair um QR Code com o valor.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
+
         Text("Pré-visualização", style = MaterialTheme.typography.titleMedium)
         Box(
             Modifier
@@ -399,6 +419,25 @@ private fun SettingsScreen(prefs: Prefs, onBack: () -> Unit) {
     var phone by remember { mutableStateOf(c.phone) }
     var footer by remember { mutableStateOf(c.footer) }
     var seq by remember { mutableStateOf(prefs.nextNumber.toString()) }
+    var pixKey by remember { mutableStateOf(c.pixKey) }
+    var pixCity by remember { mutableStateOf(c.pixCity) }
+    var logo by remember { mutableStateOf(c.logo) }
+    var logoChanged by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    val pickLogo = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) scope.launch {
+            try {
+                logo = withContext(Dispatchers.IO) {
+                    val src = ImageTools.load(ctx, uri, "image/*").pages.first()
+                    ImageTools.prepare(src, rotate = false, dither = true, bright = 0, width = 240)
+                }
+                logoChanged = true
+            } catch (e: Exception) {
+                toast(ctx, "Não consegui abrir a imagem")
+            }
+        }
+    }
 
     ScreenColumn {
         TopBar("Dados da empresa", onBack)
@@ -411,11 +450,37 @@ private fun SettingsScreen(prefs: Prefs, onBack: () -> Unit) {
         Input(address, "Endereço") { address = it }
         Input(phone, "Telefone", KeyboardType.Phone) { phone = it }
         Input(footer, "Mensagem do rodapé") { footer = it }
+
+        Text("Logo", style = MaterialTheme.typography.titleMedium)
+        logo?.let {
+            Image(
+                bitmap = it.asImageBitmap(),
+                contentDescription = "Logo",
+                modifier = Modifier.background(Color.White).padding(8.dp),
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { pickLogo.launch("image/*") }) { Text(if (logo == null) "Escolher logo" else "Trocar logo") }
+            if (logo != null) TextButton(onClick = { logo = null; logoChanged = true }) { Text("Remover") }
+        }
+
+        Text("Pix", style = MaterialTheme.typography.titleMedium)
+        Text(
+            "Com a chave cadastrada, nota, recibo e orçamento podem sair com QR Code do Pix já com o valor. " +
+                "Telefone vai com +55 (ex.: +5512991234567); CPF/CNPJ, e-mail ou chave aleatória vão como estão.",
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Input(pixKey, "Chave Pix", KeyboardType.Email) { pixKey = it }
+        Input(pixCity, "Cidade do recebedor (Pix)") { pixCity = it }
         Input(seq, "Próximo número de documento", KeyboardType.Number) { seq = it }
         Button(
             modifier = Modifier.fillMaxWidth(),
             onClick = {
-                prefs.company = Company(name.trim(), doc.trim(), address.trim(), phone.trim(), footer.trim())
+                prefs.company = Company(
+                    name.trim(), doc.trim(), address.trim(), phone.trim(), footer.trim(),
+                    pixKey = pixKey.trim(), pixCity = pixCity.trim(),
+                )
+                if (logoChanged) prefs.logo = logo
                 seq.toIntOrNull()?.let { prefs.nextNumber = it.coerceAtLeast(1) }
                 toast(ctx, "Salvo")
                 onBack()

@@ -1,5 +1,6 @@
 package com.akkos.print
 
+import android.graphics.Bitmap
 import android.graphics.Paint
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
@@ -22,11 +23,18 @@ data class Company(
     val address: String = "",
     val phone: String = "",
     val footer: String = "Obrigado pela preferência!",
+    val pixKey: String = "",
+    val pixCity: String = "",
+    val logo: Bitmap? = null,
 )
 
 class Data(val v: Map<String, String>, val items: List<Item>, val company: Company, val number: Int) {
     fun s(k: String): String = v[k]?.trim().orEmpty()
+    val wantsPix: Boolean get() = v[PIX_FLAG] == "1" && company.pixKey.isNotBlank()
 }
+
+/** Chave interna usada pelo editor para ligar/desligar o QR do Pix. */
+const val PIX_FLAG = "__pix"
 
 class Template(
     val name: String,
@@ -34,6 +42,7 @@ class Template(
     val fields: List<Field>,
     val hasItems: Boolean,
     val numbered: Boolean,
+    val pix: Boolean = false,
     val build: (Data) -> List<El>,
 )
 
@@ -58,11 +67,12 @@ private fun qtyText(q: Double) = if (q == Math.floor(q)) q.toLong().toString() e
 private fun header(d: Data, title: String): MutableList<El> {
     val out = mutableListOf<El>()
     val c = d.company
+    c.logo?.let { out.add(El.Img(it)) }
     if (c.name.isNotBlank()) out.add(El.Txt(c.name, size = 28f, bold = true, align = CENTER))
     if (c.doc.isNotBlank()) out.add(El.Txt(c.doc, size = 18f, align = CENTER))
     if (c.address.isNotBlank()) out.add(El.Txt(c.address, size = 18f, align = CENTER))
     if (c.phone.isNotBlank()) out.add(El.Txt("Tel: ${c.phone}", size = 18f, align = CENTER))
-    if (c.name.isNotBlank()) out.add(El.Line)
+    if (c.name.isNotBlank() || c.logo != null) out.add(El.Line)
     out.add(El.Txt(title, size = 26f, bold = true, align = CENTER))
     out.add(El.Txt(if (d.number > 0) "Nº %06d   %s".format(d.number, now()) else now(), size = 18f, align = CENTER))
     out.add(El.Line)
@@ -98,6 +108,14 @@ private fun items(d: Data, out: MutableList<El>, title: String = "ITEM"): Double
     return total
 }
 
+private fun pixBlock(d: Data, out: MutableList<El>, amount: Double) {
+    if (!d.wantsPix || amount <= 0) return
+    val code = Codes.pix(d.company.pixKey, d.company.name, d.company.pixCity, amount, "AKKO%06d".format(d.number))
+    out.add(El.Space(10))
+    out.add(El.Txt("Pague com Pix", size = 22f, bold = true, align = CENTER))
+    out.add(El.Img(Codes.qr(code, 260)))
+}
+
 private fun signature(out: MutableList<El>, name: String) {
     out.add(El.Space(50))
     out.add(El.Txt("______________________________", size = 20f, align = CENTER))
@@ -126,6 +144,7 @@ val TEMPLATES: List<Template> = listOf(
         ),
         hasItems = true,
         numbered = true,
+        pix = true,
     ) { d ->
         val out = header(d, "NOTA DE VENDA")
         info(out, "Cliente", d.s("cliente"))
@@ -140,6 +159,7 @@ val TEMPLATES: List<Template> = listOf(
         out.add(El.Row("TOTAL", money((sub - desc).coerceAtLeast(0.0)), size = 30f, bold = true))
         if (d.s("pagamento").isNotEmpty()) out.add(El.Row("Pagamento", d.s("pagamento"), size = 20f))
         if (d.s("obs").isNotEmpty()) { out.add(El.Space(8)); out.add(El.Txt("Obs: ${d.s("obs")}", size = 18f)) }
+        pixBlock(d, out, (sub - desc).coerceAtLeast(0.0))
         footer(d, out)
         out
     },
@@ -157,6 +177,7 @@ val TEMPLATES: List<Template> = listOf(
         ),
         hasItems = false,
         numbered = true,
+        pix = true,
     ) { d ->
         val out = header(d, "RECIBO")
         val v = num(d.s("valor"))
@@ -175,6 +196,7 @@ val TEMPLATES: List<Template> = listOf(
         out.add(El.Space(10))
         out.add(El.Txt(if (d.s("cidade").isNotEmpty()) "${d.s("cidade")}, ${today()}" else today(), size = 20f))
         signature(out, d.company.name)
+        pixBlock(d, out, v)
         out
     },
 
@@ -190,6 +212,7 @@ val TEMPLATES: List<Template> = listOf(
         ),
         hasItems = true,
         numbered = true,
+        pix = true,
     ) { d ->
         val out = header(d, "ORÇAMENTO")
         info(out, "Cliente", d.s("cliente"))
@@ -201,6 +224,7 @@ val TEMPLATES: List<Template> = listOf(
         if (d.s("validade").isNotEmpty()) info(out, "Válido por", "${d.s("validade")} dias")
         info(out, "Prazo de entrega", d.s("prazo"))
         if (d.s("obs").isNotEmpty()) out.add(El.Txt("Obs: ${d.s("obs")}", size = 18f))
+        pixBlock(d, out, total)
         footer(d, out)
         out
     },
@@ -232,6 +256,63 @@ val TEMPLATES: List<Template> = listOf(
         info(out, "Garantia", d.s("garantia"))
         signature(out, "Cliente")
         footer(d, out)
+        out
+    },
+
+    Template(
+        name = "Cobrança Pix",
+        description = "QR Code do Pix com valor, pra cliente pagar na hora",
+        fields = listOf(
+            Field("valor", "Valor (R$)", numeric = true),
+            Field("desc", "Descrição (opcional)"),
+        ),
+        hasItems = false,
+        numbered = true,
+    ) { d ->
+        val out = mutableListOf<El>()
+        val c = d.company
+        val v = num(d.s("valor"))
+        out.add(El.Txt("PIX", size = 40f, bold = true, align = CENTER))
+        if (c.name.isNotBlank()) out.add(El.Txt(c.name, size = 22f, align = CENTER))
+        out.add(El.Line)
+        if (c.pixKey.isBlank()) {
+            out.add(El.Txt("Cadastre a chave Pix em Dados da empresa.", size = 22f, bold = true, align = CENTER))
+        } else {
+            val code = Codes.pix(c.pixKey, c.name, c.pixCity, v, "AKKO%06d".format(d.number))
+            out.add(El.Img(Codes.qr(code, 340)))
+            if (v > 0) out.add(El.Txt(money(v), size = 36f, bold = true, align = CENTER))
+            if (d.s("desc").isNotEmpty()) out.add(El.Txt(d.s("desc"), size = 22f, align = CENTER))
+            out.add(El.Space(6))
+            out.add(El.Txt("Chave: ${c.pixKey}", size = 18f, align = CENTER))
+            out.add(El.Txt(now(), size = 16f, align = CENTER))
+        }
+        out
+    },
+
+    Template(
+        name = "QR Code",
+        description = "Link, Wi-Fi, contato ou qualquer texto em QR",
+        fields = listOf(
+            Field("texto", "Link ou texto", multiline = true),
+            Field("legenda", "Legenda embaixo (opcional)"),
+            Field("wifi_senha", "Senha do Wi-Fi (só se o texto for o nome da rede)"),
+        ),
+        hasItems = false,
+        numbered = false,
+    ) { d ->
+        val out = mutableListOf<El>()
+        val raw = d.s("texto")
+        if (raw.isEmpty()) {
+            out.add(El.Txt("Digite um link ou texto", size = 22f, align = CENTER))
+        } else {
+            val content = if (d.s("wifi_senha").isNotEmpty()) {
+                fun esc(s: String) = s.replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,").replace(":", "\\:")
+                "WIFI:T:WPA;S:${esc(raw)};P:${esc(d.s("wifi_senha"))};;"
+            } else raw
+            out.add(El.Img(Codes.qr(content, 340)))
+            if (d.s("legenda").isNotEmpty()) out.add(El.Txt(d.s("legenda"), size = 24f, bold = true, align = CENTER))
+            if (d.s("wifi_senha").isNotEmpty()) out.add(El.Txt("Wi-Fi: $raw", size = 20f, align = CENTER))
+        }
         out
     },
 

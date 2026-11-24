@@ -7,6 +7,9 @@ import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothSocket
 import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import java.io.File
 import android.os.Build
 import android.widget.Toast
 import androidx.core.content.ContextCompat
@@ -93,6 +96,15 @@ fun toast(ctx: Context, msg: String) = Toast.makeText(ctx, msg, Toast.LENGTH_LON
 
 class Prefs(ctx: Context) {
     private val sp = ctx.getSharedPreferences("akkos_print", Context.MODE_PRIVATE)
+    private val logoFile = File(ctx.filesDir, "logo.png")
+
+    /** Logo já convertido em preto e branco no tamanho de impressão. */
+    var logo: Bitmap?
+        get() = if (logoFile.exists()) BitmapFactory.decodeFile(logoFile.absolutePath) else null
+        set(v) {
+            if (v == null) logoFile.delete()
+            else logoFile.outputStream().use { v.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        }
 
     var printer: String?
         get() = sp.getString("printer", null)
@@ -109,6 +121,9 @@ class Prefs(ctx: Context) {
             address = sp.getString("c_addr", "") ?: "",
             phone = sp.getString("c_phone", "") ?: "",
             footer = sp.getString("c_footer", "Obrigado pela preferência!") ?: "",
+            pixKey = sp.getString("c_pix", "") ?: "",
+            pixCity = sp.getString("c_pixcity", "") ?: "",
+            logo = logo,
         )
         set(c) {
             sp.edit()
@@ -117,6 +132,8 @@ class Prefs(ctx: Context) {
                 .putString("c_addr", c.address)
                 .putString("c_phone", c.phone)
                 .putString("c_footer", c.footer)
+                .putString("c_pix", c.pixKey)
+                .putString("c_pixcity", c.pixCity)
                 .apply()
         }
 }

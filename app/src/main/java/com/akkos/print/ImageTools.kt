@@ -88,12 +88,12 @@ object ImageTools {
      * dither = false: corte simples (bom para texto, código de barras e QR).
      * bright: -100..100, clareia/escurece antes de converter.
      */
-    fun prepare(src: Bitmap, rotate: Boolean, dither: Boolean, bright: Int): Bitmap {
+    fun prepare(src: Bitmap, rotate: Boolean, dither: Boolean, bright: Int, width: Int = PAPER_WIDTH): Bitmap {
         val rotated = if (rotate) {
             Bitmap.createBitmap(src, 0, 0, src.width, src.height, Matrix().apply { postRotate(90f) }, true)
         } else src
 
-        val w = PAPER_WIDTH
+        val w = width
         val h = (rotated.height * w / rotated.width.toFloat()).toInt().coerceAtLeast(1)
         val scaled = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         Canvas(scaled).apply {

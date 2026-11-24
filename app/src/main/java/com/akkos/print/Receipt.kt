@@ -30,6 +30,9 @@ sealed class El {
     data object Line : El()
     data object DashLine : El()
     data class Space(val h: Int = 10) : El()
+
+    /** Imagem já em preto e branco (QR, logo). Centralizada, sem reamostrar se couber. */
+    class Img(val bmp: Bitmap) : El()
 }
 
 /**
@@ -129,6 +132,13 @@ object Renderer {
                     y += 10f
                 }
                 is El.Space -> y += e.h
+                is El.Img -> {
+                    val w = minOf(e.bmp.width, PAPER_WIDTH)
+                    val h = e.bmp.height * w / e.bmp.width
+                    val left = (PAPER_WIDTH - w) / 2f
+                    c?.drawBitmap(e.bmp, null, android.graphics.RectF(left, y, left + w, y + h), null)
+                    y += h + 6
+                }
             }
         }
         return y.toInt() + 4
